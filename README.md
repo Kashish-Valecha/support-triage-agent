@@ -1,11 +1,10 @@
 ---
 title: Support Triage Agent
-emoji: 🎯
+emoji: 🤖
 colorFrom: blue
-colorTo: green
+colorTo: purple
 sdk: gradio
-sdk_version: "4.40.1"
-python_version: "3.10"
+sdk_version: "4.44.0"
 app_file: app.py
 pinned: false
 ---
