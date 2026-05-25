@@ -29,7 +29,7 @@ if env_file.exists():
 # CONFIGURATION
 # ============================================================================
 
-MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
+MODEL = "HuggingFaceH4/zephyr-7b-beta"
 TOP_K_DOCS = 3
 MAX_TOKENS = 500
 
@@ -184,15 +184,14 @@ class TriageAgent:
         # Call API using InferenceClient
         try:
             client = InferenceClient(
-                model="mistralai/Mistral-7B-Instruct-v0.3",
+                model="HuggingFaceH4/zephyr-7b-beta",
                 token=hf_token
             )
             
             response_text = client.text_generation(
                 prompt=prompt,
-                max_new_tokens=MAX_TOKENS,
+                max_new_tokens=150,
                 temperature=0.3,
-                top_p=0.95,
             )
             
             # Parse JSON from response
@@ -220,33 +219,43 @@ class TriageAgent:
                         "request_type": parsed.get("request_type", "product_issue"),
                     }
             
-            return {
-                "error": "Could not parse response",
-                "status": "Escalated",
-                "product_area": "general",
-                "response": "Error processing request",
-                "justification": "Failed to parse API response",
-                "request_type": "invalid"
-            }
+            # JSON parsing failed, fall through to TF-IDF fallback
+            pass
         
         except Exception as e:
+            # API failed, use TF-IDF fallback
+            pass
+        
+        # ===== FALLBACK: Use TF-IDF results only =====
+        if context_docs:
+            # Get the product area from top doc's path
+            top_doc_id = context_docs[0][0]  # e.g., "data/claude/features-and-capabilities/..."
+            path_parts = top_doc_id.split("/")
+            
+            # Extract domain from path (e.g., "claude", "hackerrank", "visa")
+            product_area = "general"
+            if len(path_parts) > 1:
+                domain = path_parts[1].lower()
+                if domain in ["claude", "hackerrank", "visa"]:
+                    product_area = domain.capitalize()
+            
             return {
-                "error": str(e),
-                "status": "Escalated",
-                "product_area": "general",
-                "response": "API connection error. Ticket escalated to human review.",
-                "justification": f"Error: {str(e)[:100]}",
-                "request_type": "invalid"
+                "status": "Classified (No LLM)",
+                "product_area": product_area,
+                "response": f"Ticket classified and routed to {product_area} team for review.",
+                "justification": "Classified via TF-IDF corpus matching (LLM API unavailable)",
+                "request_type": "support",
             }
-        except json.JSONDecodeError as e:
-            return {
-                "error": f"JSON parse error: {str(e)}",
-                "status": "Escalated",
-                "product_area": "general",
-                "response": "Processing error. Ticket escalated to human review.",
-                "justification": "Could not parse classification response",
-                "request_type": "invalid"
-            }
+        
+        # No docs found and API failed
+        return {
+            "error": "No LLM response and no docs found",
+            "status": "Escalated",
+            "product_area": "general",
+            "response": "Unable to classify ticket. Escalated to human review.",
+            "justification": "LLM API failed and insufficient corpus match",
+            "request_type": "invalid"
+        }
 
 
 # ============================================================================

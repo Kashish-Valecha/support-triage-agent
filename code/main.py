@@ -34,7 +34,7 @@ except ImportError:
 # ============================================================================
 
 SEED = 42
-MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
+MODEL = "HuggingFaceH4/zephyr-7b-beta"
 TOP_K_DOCS = 3  # Number of relevant docs to retrieve
 MAX_TOKENS = 1000  # Max tokens for response
 
@@ -211,21 +211,42 @@ def call_huggingface_api(
     # Call HuggingFace API using InferenceClient
     try:
         client = InferenceClient(
-            model="mistralai/Mistral-7B-Instruct-v0.3",
+            model="HuggingFaceH4/zephyr-7b-beta",
             token=hf_token
         )
         
         response_text = client.text_generation(
             prompt=combined_prompt,
-            max_new_tokens=MAX_TOKENS,
+            max_new_tokens=200,
             temperature=0.3,
-            top_p=0.95,
         )
         
         return response_text
     except Exception as e:
-        print(f"DEBUG: HuggingFace API error: {e}")
-        raise
+        # Fallback: Return TF-IDF classification for batch
+        print(f"WARNING: API failed ({e}), using TF-IDF fallback")
+        fallback_results = []
+        for i, ticket in enumerate(batch_tickets):
+            context_docs = all_context_docs.get(i, [])
+            product_area = "general"
+            if context_docs:
+                doc_id = context_docs[0][0]
+                path_parts = doc_id.split("/")
+                if len(path_parts) > 1:
+                    domain = path_parts[1].lower()
+                    if domain in ["claude", "hackerrank", "visa"]:
+                        product_area = domain.capitalize()
+            
+            fallback_results.append({
+                "status": "Classified (No LLM)",
+                "product_area": product_area,
+                "response": f"Ticket routed to {product_area} team.",
+                "justification": "TF-IDF fallback (LLM unavailable)",
+                "request_type": "support"
+            })
+        
+        # Format as JSON array to match expected output
+        return json.dumps(fallback_results)
 
 
 # ============================================================================
