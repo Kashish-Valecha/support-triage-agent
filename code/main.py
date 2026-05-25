@@ -10,9 +10,9 @@ import csv
 import json
 import time
 import random
-import requests
 from datetime import datetime
 from pathlib import Path
+from huggingface_hub import InferenceClient
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -35,7 +35,6 @@ except ImportError:
 
 SEED = 42
 MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{MODEL}"
 TOP_K_DOCS = 3  # Number of relevant docs to retrieve
 MAX_TOKENS = 1000  # Max tokens for response
 
@@ -209,37 +208,23 @@ def call_huggingface_api(
     full_message = f"{tickets_text}\n\n{context_text}\n\nRespond with a JSON array with one result object per ticket (matching the order above)."
     combined_prompt = f"{SYSTEM_PROMPT}\n\n{full_message}"
     
-    # Call HuggingFace API
-    headers = {
-        "Authorization": f"Bearer {hf_token}",
-        "Content-Type": "application/json",
-    }
-    
-    payload = {
-        "inputs": combined_prompt,
-        "parameters": {
-            "max_new_tokens": MAX_TOKENS,
-            "temperature": 0.3,
-            "top_p": 0.95,
-        },
-    }
-    
+    # Call HuggingFace API using InferenceClient
     try:
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
-        response.raise_for_status()
-        result = response.json()
+        client = InferenceClient(
+            model="mistralai/Mistral-7B-Instruct-v0.3",
+            token=hf_token
+        )
         
-        # HuggingFace returns list with one element containing generated_text
-        if isinstance(result, list) and len(result) > 0:
-            response_text = result[0].get("generated_text", "")
-        else:
-            response_text = result.get("generated_text", "")
+        response_text = client.text_generation(
+            prompt=combined_prompt,
+            max_new_tokens=MAX_TOKENS,
+            temperature=0.3,
+            top_p=0.95,
+        )
         
         return response_text
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"DEBUG: HuggingFace API error: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"DEBUG: Response: {e.response.text}")
         raise
 
 

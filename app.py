@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "code"))
 
 import gradio as gr
 from dotenv import load_dotenv
-import requests
+from huggingface_hub import InferenceClient
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -30,7 +30,6 @@ if env_file.exists():
 # ============================================================================
 
 MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{MODEL}"
 TOP_K_DOCS = 3
 MAX_TOKENS = 500
 
@@ -182,31 +181,19 @@ class TriageAgent:
         # Build prompt
         prompt = f"{SYSTEM_PROMPT}\n\nTICKET:\n{ticket_text}\n\n{context_text}\n\nRespond with JSON object only."
         
-        # Call API
-        headers = {
-            "Authorization": f"Bearer {hf_token}",
-            "Content-Type": "application/json",
-        }
-        
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": MAX_TOKENS,
-                "temperature": 0.3,
-                "top_p": 0.95,
-            },
-        }
-        
+        # Call API using InferenceClient
         try:
-            response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
-            result = response.json()
+            client = InferenceClient(
+                model="mistralai/Mistral-7B-Instruct-v0.3",
+                token=hf_token
+            )
             
-            # Extract generated text
-            if isinstance(result, list) and len(result) > 0:
-                response_text = result[0].get("generated_text", "")
-            else:
-                response_text = result.get("generated_text", "")
+            response_text = client.text_generation(
+                prompt=prompt,
+                max_new_tokens=MAX_TOKENS,
+                temperature=0.3,
+                top_p=0.95,
+            )
             
             # Parse JSON from response
             response_text = response_text.strip()
@@ -242,13 +229,13 @@ class TriageAgent:
                 "request_type": "invalid"
             }
         
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             return {
                 "error": str(e),
                 "status": "Escalated",
                 "product_area": "general",
                 "response": "API connection error. Ticket escalated to human review.",
-                "justification": f"Network error: {str(e)[:100]}",
+                "justification": f"Error: {str(e)[:100]}",
                 "request_type": "invalid"
             }
         except json.JSONDecodeError as e:
