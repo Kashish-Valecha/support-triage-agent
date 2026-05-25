@@ -329,7 +329,6 @@ def create_interface():
                 "App Crashing - Checkout Screen",
             ],
         ],
-        allow_flagging="never",
     )
     
     return demo
