@@ -1,3 +1,15 @@
+---
+title: Support Triage Agent
+emoji: 🎯
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.40.1"
+python_version: "3.10"
+app_file: app.py
+pinned: false
+---
+
 # Multi-Domain Support Triage Agent
 
 An AI-powered support ticket triage system that automatically classifies and routes tickets across HackerRank, Claude, and Visa domains using retrieval-augmented generation (RAG).
