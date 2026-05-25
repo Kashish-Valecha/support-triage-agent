@@ -183,16 +183,17 @@ class TriageAgent:
         
         # Call API using InferenceClient
         try:
-            client = InferenceClient(
-                model="HuggingFaceH4/zephyr-7b-beta",
-                token=hf_token
-            )
+            client = InferenceClient(token=hf_token)
             
-            response_text = client.text_generation(
-                prompt=prompt,
-                max_new_tokens=150,
+            # Use chat_completion (text_generation is not supported by current provider)
+            response = client.chat_completion(
+                model="HuggingFaceH4/zephyr-7b-beta",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
                 temperature=0.3,
             )
+            
+            response_text = response["choices"][0]["message"]["content"]
             
             # Parse JSON from response
             response_text = response_text.strip()

@@ -210,17 +210,17 @@ def call_huggingface_api(
     
     # Call HuggingFace API using InferenceClient
     try:
-        client = InferenceClient(
-            model="HuggingFaceH4/zephyr-7b-beta",
-            token=hf_token
-        )
+        client = InferenceClient(token=hf_token)
         
-        response_text = client.text_generation(
-            prompt=combined_prompt,
-            max_new_tokens=200,
+        # Use chat_completion (text_generation is not supported by current provider)
+        response = client.chat_completion(
+            model="HuggingFaceH4/zephyr-7b-beta",
+            messages=[{"role": "user", "content": combined_prompt}],
+            max_tokens=200,
             temperature=0.3,
         )
         
+        response_text = response["choices"][0]["message"]["content"]
         return response_text
     except Exception as e:
         # Fallback: Return TF-IDF classification for batch
