@@ -34,7 +34,7 @@ except ImportError:
 # ============================================================================
 
 SEED = 42
-MODEL = "HuggingFaceH4/zephyr-7b-beta"
+MODEL = "google/gemma-2-2b-it"
 TOP_K_DOCS = 3  # Number of relevant docs to retrieve
 MAX_TOKENS = 1000  # Max tokens for response
 
@@ -208,19 +208,22 @@ def call_huggingface_api(
     full_message = f"{tickets_text}\n\n{context_text}\n\nRespond with a JSON array with one result object per ticket (matching the order above)."
     combined_prompt = f"{SYSTEM_PROMPT}\n\n{full_message}"
     
-    # Call HuggingFace API using InferenceClient
+    # Call HuggingFace API using InferenceClient with Gemma format
     try:
-        client = InferenceClient(token=hf_token)
-        
-        # Use chat_completion (text_generation is not supported by current provider)
-        response = client.chat_completion(
-            model="HuggingFaceH4/zephyr-7b-beta",
-            messages=[{"role": "user", "content": combined_prompt}],
-            max_tokens=200,
-            temperature=0.3,
+        client = InferenceClient(
+            model="google/gemma-2-2b-it",
+            token=hf_token
         )
         
-        response_text = response["choices"][0]["message"]["content"]
+        # Format prompt for Gemma with turn tags
+        gemma_prompt = f"<start_of_turn>user\n{combined_prompt}<end_of_turn>\n<start_of_turn>model\n"
+        
+        response_text = client.text_generation(
+            prompt=gemma_prompt,
+            max_new_tokens=200,
+            temperature=0.3,
+            stop_sequences=["<end_of_turn>"]
+        )
         return response_text
     except Exception as e:
         # Fallback: Return TF-IDF classification for batch
