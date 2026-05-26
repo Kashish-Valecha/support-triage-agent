@@ -1,8 +1,5 @@
 import google.generativeai as genai
 
-genai.configure(api_key='AIzaSyBmqQgvTHbGPuKpPwNghsb1688O64DN2B8')
-model = genai.GenerativeModel('gemini-2.5-flash')
-
 print("Testing simple API call...")
 response = model.generate_content("Respond with JSON: {\"test\": \"value\"}")
 print(f"Response object type: {type(response)}")
