@@ -26,8 +26,10 @@ if env_file.exists():
     load_dotenv(env_file)
 
 # ============================================================================
-# CONFIGURATION
+# DEBUG: Check Groq API Key
 # ============================================================================
+groq_key = os.getenv("GROQ_API_KEY")
+print(f"\n🔑 GROQ KEY LOADED: {'YES - ' + groq_key[:8] + '...' if groq_key else 'NO - KEY IS NONE'}\n")
 
 MODEL = "google/gemma-2-2b-it"
 TOP_K_DOCS = 3
@@ -222,7 +224,11 @@ class TriageAgent:
             pass
         
         except Exception as e:
-            # API failed, use TF-IDF fallback
+            # API failed, print detailed error
+            import traceback
+            print(f"\n❌ GROQ ERROR: {str(e)}")
+            print(f"📋 FULL TRACEBACK:\n{traceback.format_exc()}\n")
+            # Fall through to TF-IDF fallback
             pass
         
         # ===== FALLBACK: Use TF-IDF results only =====
