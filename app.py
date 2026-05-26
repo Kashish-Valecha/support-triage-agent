@@ -178,23 +178,21 @@ class TriageAgent:
         if not context_docs:
             context_text += "*No relevant docs found in corpus*\n"
         
-        # Build prompt with Gemma format
-        base_prompt = f"{SYSTEM_PROMPT}\n\nTICKET:\n{ticket_text}\n\n{context_text}\n\nRespond with JSON object only."
-        prompt = f"<start_of_turn>user\n{base_prompt}<end_of_turn>\n<start_of_turn>model\n"
+        # Build prompt
+        prompt = f"{SYSTEM_PROMPT}\n\nTICKET:\n{ticket_text}\n\n{context_text}\n\nRespond with JSON object only."
         
-        # Call API using InferenceClient
+        # Call API using InferenceClient (Gemma uses chat_completion, not text_generation)
         try:
-            client = InferenceClient(
+            client = InferenceClient(token=hf_token)
+            
+            response = client.chat_completion(
                 model="google/gemma-2-2b-it",
-                token=hf_token
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0.3,
             )
             
-            response_text = client.text_generation(
-                prompt=prompt,
-                max_new_tokens=150,
-                temperature=0.3,
-                stop_sequences=["<end_of_turn>"]
-            )
+            response_text = response["choices"][0]["message"]["content"]
             
             # Parse JSON from response
             response_text = response_text.strip()
