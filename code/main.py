@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 HackerRank Orchestrate - Support Triage Agent
-Processes support tickets using TF-IDF retrieval + HuggingFace Inference API
+Processes support tickets using TF-IDF retrieval + Groq API
 """
 
 import os
@@ -12,7 +12,7 @@ import time
 import random
 from datetime import datetime
 from pathlib import Path
-from huggingface_hub import InferenceClient
+from groq import Groq
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -208,18 +208,24 @@ def call_huggingface_api(
     full_message = f"{tickets_text}\n\n{context_text}\n\nRespond with a JSON array with one result object per ticket (matching the order above)."
     combined_prompt = f"{SYSTEM_PROMPT}\n\n{full_message}"
     
-    # Call HuggingFace API using InferenceClient (Gemma uses chat_completion, not text_generation)
+    # Call Groq API
     try:
-        client = InferenceClient(token=hf_token)
+        groq_key = os.getenv("GROQ_API_KEY")
+        if not groq_key:
+            raise ValueError("GROQ_API_KEY not set")
         
-        response = client.chat_completion(
-            model="google/gemma-2-2b-it",
-            messages=[{"role": "user", "content": combined_prompt}],
+        client = Groq(api_key=groq_key)
+        
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "user", "content": combined_prompt}
+            ],
             max_tokens=200,
             temperature=0.3,
         )
         
-        response_text = response["choices"][0]["message"]["content"]
+        response_text = response.choices[0].message.content
         return response_text
     except Exception as e:
         # Fallback: Return TF-IDF classification for batch
@@ -237,7 +243,7 @@ def call_huggingface_api(
                         product_area = domain.capitalize()
             
             fallback_results.append({
-                "status": "Classified (No LLM)",
+                "status": "Classified (fallback)",
                 "product_area": product_area,
                 "response": f"Ticket routed to {product_area} team.",
                 "justification": "TF-IDF fallback (LLM unavailable)",

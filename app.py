@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent / "code"))
 
 import gradio as gr
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
+from groq import Groq
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -156,18 +156,7 @@ class TriageAgent:
             return []
     
     def classify_ticket(self, ticket_text):
-        """Classify a single ticket via HuggingFace API."""
-        hf_token = os.getenv("HF_TOKEN")
-        if not hf_token:
-            return {
-                "error": "HF_TOKEN not set",
-                "status": "Escalated",
-                "product_area": "general",
-                "response": "Configuration error: HF_TOKEN not found",
-                "justification": "Missing API token",
-                "request_type": "invalid"
-            }
-        
+        """Classify a single ticket via Groq API."""
         # Retrieve context
         context_docs = self.retrieve_docs(ticket_text)
         
@@ -181,18 +170,24 @@ class TriageAgent:
         # Build prompt
         prompt = f"{SYSTEM_PROMPT}\n\nTICKET:\n{ticket_text}\n\n{context_text}\n\nRespond with JSON object only."
         
-        # Call API using InferenceClient (Gemma uses chat_completion, not text_generation)
+        # Call API using Groq
         try:
-            client = InferenceClient(token=hf_token)
+            groq_key = os.getenv("GROQ_API_KEY")
+            if not groq_key:
+                raise ValueError("GROQ_API_KEY not set")
             
-            response = client.chat_completion(
-                model="google/gemma-2-2b-it",
-                messages=[{"role": "user", "content": prompt}],
+            client = Groq(api_key=groq_key)
+            
+            response = client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
                 max_tokens=150,
                 temperature=0.3,
             )
             
-            response_text = response["choices"][0]["message"]["content"]
+            response_text = response.choices[0].message.content
             
             # Parse JSON from response
             response_text = response_text.strip()
@@ -207,8 +202,12 @@ class TriageAgent:
                     parsed = json.loads(json_str)
                     
                     # Normalize
-                    status = parsed.get("status", "Escalated").lower().capitalize()
-                    if status not in ["Replied", "Escalated"]:
+                    status = parsed.get("status", "Escalated").lower()
+                    if status == "replied":
+                        status = "Classified + Answered ✓"
+                    elif status != "escalated":
+                        status = "Escalated"
+                    else:
                         status = "Escalated"
                     
                     return {
@@ -240,7 +239,7 @@ class TriageAgent:
                     product_area = domain.capitalize()
             
             return {
-                "status": "Classified (No LLM)",
+                "status": "Classified (fallback)",
                 "product_area": product_area,
                 "response": f"Ticket classified and routed to {product_area} team for review.",
                 "justification": "Classified via TF-IDF corpus matching (LLM API unavailable)",
